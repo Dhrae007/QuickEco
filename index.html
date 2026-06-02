@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Quick-Tap Eco Waste Reporter</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="container">
+
+    <h1>Quick-Tap Eco Waste Reporter</h1>
+    <p class="subtitle">Point camera at waste and tap a category box overlay to log it instantly</p>
+
+    <form id="reportForm">
+
+      <div class="form-group">
+        <label>Live Viewfinder</label>
+        <div class="camera-viewport">
+          <video id="webcam" autoplay playsinline muted></video>
+          
+          <div class="target-frame"></div>
+          
+          <div class="quick-action-overlay">
+            <button type="button" class="tap-node" data-category="plastic">♻️ Plastic</button>
+            <button type="button" class="tap-node" data-category="organic">🍎 Organic</button>
+            <button type="button" class="tap-node" data-category="metal">🥫 Metal</button>
+            <button type="button" class="tap-node" data-category="general">🗑️ General</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group" id="previewWrapper" style="display: none;">
+        <label>Captured Evidence Snapshot</label>
+        <div class="snapshot-holder">
+          <img id="capturePreview" src="" alt="Captured Form Evidence" />
+          <div id="qualityBadge" class="quality-badge">Checking Quality...</div>
+          <button type="button" id="retakeBtn">⚠️ Clear & Resnap</button>
+        </div>
+      </div>
+
+      <input type="hidden" id="targetCategory" name="category" value="" required />
+
+      <div class="form-group">
+        <label for="description">Issue Description</label>
+        <textarea id="description" placeholder="Add additional details or landmark context notes here..." required></textarea>
+      </div>
+
+      <div class="map-container">
+        <iframe
+          id="googleMap"
+          title="User Location Map"
+          width="100%"
+          height="260"
+          style="border:0;"
+          loading="lazy"
+          allowfullscreen>
+        </iframe>
+      </div>
+
+      <button type="submit" class="submit-btn" id="submitBtn" disabled>Tap a Category Overlay Above</button>
+
+    </form>
+    <hr />
+
+    <div class="feedback-box" id="feedbackBox">
+      <h3>System Event Diagnostics</h3>
+      <ul id="feedbackList">
+        <li>Syncing hardware core camera lens modules...</li>
+      </ul>
+    </div>
+
+    <div class="history-container">
+      <h2>Logged Community Reports</h2>
+      <div id="reportHistory">
+        <p>No reports saved yet.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
