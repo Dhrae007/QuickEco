@@ -13,14 +13,43 @@ const googleMap = document.getElementById("googleMap");
 const mapContainer = document.querySelector(".map-container");
 const reportHistory = document.getElementById("reportHistory");
 const submitBtn = document.getElementById("submitBtn");
+const ipStatusField = document.getElementById("ipStatus");
+
+// Layout wrapper blocks for dynamic error injection
+const cameraGroup = document.getElementById("cameraGroup");
+const descriptionGroup = document.getElementById("descriptionGroup");
+const mapGroup = document.getElementById("mapGroup");
 
 let userLocation = null;
 let finalizedSnapshotBase64 = null;
-let isImageQualityApproved = false; // New condition checkpoint variable
+let isImageQualityApproved = false;
+let userIpAddress = "Detecting...";
 
+// ==========================================
+// AUTOMATED IP ADDRESS DETECTOR
+// ==========================================
+async function detectDeviceNetworkIp() {
+  try {
+    const response = await fetch("https://api.ipify.org?format=json");
+    if (!response.ok) throw new Error("Network routing issue");
+    const data = await response.json();
+    userIpAddress = data.ip;
+    if (ipStatusField) {
+      ipStatusField.textContent = `Network Tracking Sync: Active [IP: ${userIpAddress}]`;
+      ipStatusField.style.color = "#16a34a";
+    }
+  } catch (error) {
+    userIpAddress = "Unavailable/Offline";
+    if (ipStatusField) {
+      ipStatusField.textContent = "Network Tracking Sync: Restricted/Offline";
+      ipStatusField.style.color = "#dc2626";
+    }
+  }
+}
 
+// ==========================================
 // CAMERA LENS VIEWPORT STREAMS ENGINE
-
+// ==========================================
 async function openHardwareCameraFeed() {
   try {
     const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -31,13 +60,12 @@ async function openHardwareCameraFeed() {
     updateDiagnosticDisplay("Camera stream active. Point and tap an element node to capture instantly.", false);
   } catch (error) {
     updateDiagnosticDisplay("Hardware Intercept Fail: Please approve device camera hardware permissions.", true);
-    console.error(error);
   }
 }
 
-
+// ==========================================
 // AUTOMATED LOCATION GEOPOSITION DETECTOR
-
+// ==========================================
 function establishPassiveLocationSensing() {
   if (!navigator.geolocation) {
     updateDiagnosticDisplay("System Error: Geolocation tracking missing from your browser engine architecture.", true);
@@ -53,6 +81,7 @@ function establishPassiveLocationSensing() {
       
       if (mapContainer && googleMap) {
         mapContainer.style.display = "block";
+        mapGroup.classList.remove("input-error-gps"); // Clear warning once location matches
         googleMap.src = `https://maps.google.com/maps?q=${userLocation.latitude},${userLocation.longitude}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
       }
       verifyFormCompleteness();
@@ -67,7 +96,9 @@ function establishPassiveLocationSensing() {
   );
 }
 
+// ==========================================
 // CORE "POINT & SHOOT" SMART UI ACTIONS
+// ==========================================
 actionButtons.forEach(button => {
   button.addEventListener("click", function () {
     const selectedCategory = this.getAttribute("data-category");
@@ -76,6 +107,7 @@ actionButtons.forEach(button => {
     this.classList.add("active-lock");
     categoryInput.value = selectedCategory;
 
+    cameraGroup.classList.remove("input-error");
     generateViewfinderSnapshot();
     verifyFormCompleteness();
   });
@@ -89,7 +121,6 @@ function generateViewfinderSnapshot() {
   const context = canvas.getContext("2d");
   context.drawImage(video, 0, 0, canvas.width, canvas.height);
   
-  // Extract pixel matrix mapping configuration rules to judge clarity status
   const imgData = context.getImageData(0, 0, canvas.width, canvas.height);
   analyzeImageVisibilityAndQuality(imgData);
 
@@ -98,70 +129,48 @@ function generateViewfinderSnapshot() {
   previewWrapper.style.display = "block";
 }
 
-// IMAGE QUALITY & VISIBILITY ANALYSIS (NO AI)
 function analyzeImageVisibilityAndQuality(imageData) {
   const pixels = imageData.data;
   let totalBrightness = 0;
   const totalPixels = pixels.length / 4;
 
-  // Step 1: Compute Average Brightness (Grayscale values)
   for (let i = 0; i < pixels.length; i += 4) {
-    const r = pixels[i];
-    const g = pixels[i + 1];
-    const b = pixels[i + 2];
-    
-    // Standard human eye color luminosity weights
-    const brightness = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    totalBrightness += brightness;
+    totalBrightness += (0.2126 * pixels[i] + 0.7152 * pixels[i + 1] + 0.0722 * pixels[i + 2]);
   }
 
   const avgBrightness = totalBrightness / totalPixels;
   const contrastVariance = calculateImageContrast(pixels, avgBrightness, totalPixels);
 
-  qualityBadge.className = "quality-badge"; // Reset styles
+  qualityBadge.className = "quality-badge"; 
 
-  // Step 2: Evaluate mathematical thresholds
-  // Brightness < 25 means too dark (finger over lens). Brightness > 245 means blinding glare/blank sheet.
-  // Contrast < 12 means image is completely flat, blurry, or lacks any defining contours.
   if (avgBrightness < 25) {
     isImageQualityApproved = false;
-    qualityBadge.textContent = "QC Fail: Image Too Dark";
+    qualityBadge.textContent = "QC Fail: Too Dark";
     qualityBadge.classList.add("fail");
-    updateDiagnosticDisplay("Quality Alert: Image rejected. The environment is too dark or the lens is covered.", true);
   } else if (avgBrightness > 245) {
     isImageQualityApproved = false;
     qualityBadge.textContent = "QC Fail: Blinding Glare";
     qualityBadge.classList.add("fail");
-    updateDiagnosticDisplay("Quality Alert: Image rejected. Too much direct white glare detected.", true);
   } else if (contrastVariance < 12) {
     isImageQualityApproved = false;
-    qualityBadge.textContent = "QC Fail: Too Blurry/Flat";
+    qualityBadge.textContent = "QC Fail: Too Blurry";
     qualityBadge.classList.add("fail");
-    updateDiagnosticDisplay("Quality Alert: Image rejected. The frame is too blurry or lacks identifiable shape contrast.", true);
   } else {
     isImageQualityApproved = true;
     qualityBadge.textContent = "QC Pass: Clear Visibility";
     qualityBadge.classList.add("pass");
-    updateDiagnosticDisplay("Quality Verified: Image lighting, sharpness, and shape definitions approved.", false);
   }
 }
 
-// Helper mathematical contrast checker
 function calculateImageContrast(pixels, avgBrightness, totalPixels) {
   let sumSquaredDiff = 0;
-  // Sample every 4th pixel to keep execution lightning fast on mobile processors
   for (let i = 0; i < pixels.length; i += 16) {
-    const r = pixels[i];
-    const g = pixels[i + 1];
-    const b = pixels[i + 2];
-    const brightness = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    
+    const brightness = 0.2126 * pixels[i] + 0.7152 * pixels[i+1] + 0.0722 * pixels[i+2];
     sumSquaredDiff += Math.pow(brightness - avgBrightness, 2);
   }
   return Math.sqrt(sumSquaredDiff / (totalPixels / 4));
 }
 
-// Clear active snapshot configurations
 retakeBtn.addEventListener("click", function() {
   finalizedSnapshotBase64 = null;
   isImageQualityApproved = false;
@@ -169,42 +178,56 @@ retakeBtn.addEventListener("click", function() {
   previewWrapper.style.display = "none";
   capturePreview.src = "";
   actionButtons.forEach(btn => btn.classList.remove("active-lock"));
-  
-  updateDiagnosticDisplay("Evidence snapshot cleared. Camera tracking unlocked.", false);
   verifyFormCompleteness();
 });
 
-
+// ==========================================
 // SYSTEM CHECKPOINTS & FORM VALIDATIONS
-
+// ==========================================
 function verifyFormCompleteness() {
   const noteContent = descriptionArea.value.trim();
   feedbackList.innerHTML = "";
 
+  let hasErrors = false;
+
   if (!finalizedSnapshotBase64) {
     updateDiagnosticDisplay("Requirement Warning: Tap a category icon on the video viewport feed to take a photo.", true);
+    hasErrors = true;
   } else if (!isImageQualityApproved) {
-    updateDiagnosticDisplay("Requirement Warning: Captured image failed visibility checks. Please resnap under better lighting.", true);
+    updateDiagnosticDisplay("Requirement Warning: Captured image failed visibility checks.", true);
+    hasErrors = true;
   }
-  if (!userLocation) {
-    updateDiagnosticDisplay("GPS Sync Pending: Turn on your phone's location/GPS settings to trace data.", true);
-  }
-  if (noteContent === "") {
-    updateDiagnosticDisplay("Input Pending: Provide structural description context notes.", true);
+  
+  if (!categoryInput.value) {
+    updateDiagnosticDisplay("Requirement Warning: Category assignment payload is missing.", true);
+    hasErrors = true;
   }
 
-  // Submit button blocks entry if image checks fail
-  if (finalizedSnapshotBase64 && isImageQualityApproved && categoryInput.value !== "" && userLocation && noteContent !== "") {
+  if (!userLocation) {
+    updateDiagnosticDisplay("GPS Sync Pending: Turn on location/GPS settings to trace data.", true);
+    hasErrors = true;
+  }
+  
+  if (noteContent === "") {
+    updateDiagnosticDisplay("Input Pending: Provide structural description context notes.", true);
+    hasErrors = true;
+  }
+
+  if (finalizedSnapshotBase64 && isImageQualityApproved && categoryInput.value) cameraGroup.classList.remove("input-error");
+  if (noteContent !== "") descriptionGroup.classList.remove("input-error");
+
+  // Dynamic Button State Rules
+  if (!hasErrors) {
     submitBtn.disabled = false;
     submitBtn.textContent = "Submit Report";
   } else {
     submitBtn.disabled = true;
-    if (!finalizedSnapshotBase64) {
-      submitBtn.textContent = "Tap a Category Overlay Above";
+    if (!finalizedSnapshotBase64 || !categoryInput.value) {
+      submitBtn.textContent = "Select Category Tool Overlay";
     } else if (!isImageQualityApproved) {
       submitBtn.textContent = "Fix Blurred/Dark Image Quality";
     } else if (!userLocation) {
-      submitBtn.textContent = "Awaiting Location Connection";
+      submitBtn.textContent = "Awaiting GPS Signal Lock...";
     } else {
       submitBtn.textContent = "Fill Out Description Field";
     }
@@ -213,30 +236,74 @@ function verifyFormCompleteness() {
 
 descriptionArea.addEventListener("input", verifyFormCompleteness);
 
-
-// FORM STORAGE CONTEXT SUBMIT MECHANICS
-
+// ==========================================
+// CRITICAL FIX: HARD SUBMIT INTERCEPT PROTECTION GATE
+// ==========================================
 reportForm.addEventListener("submit", function (event) {
-  event.preventDefault();
+  event.preventDefault(); // Stop form submission execution thread immediately
 
   const noteContent = descriptionArea.value.trim();
   const lockedCategory = categoryInput.value;
 
+  // CRITICAL CHECKPOINT EXTRACTION: Catches mid-session drops immediately at runtime
+  let validationFailure = false;
+  let alertMessage = "Submission Rejected!\n\n";
+
+  if (!lockedCategory) {
+    cameraGroup.classList.add("input-error");
+    alertMessage += "- Category Selection is missing or corrupted.\n";
+    validationFailure = true;
+  }
+
+  if (!finalizedSnapshotBase64 || !isImageQualityApproved) {
+    cameraGroup.classList.add("input-error");
+    alertMessage += "- Valid, clear viewfinder image evidence is required.\n";
+    validationFailure = true;
+  }
+
+  if (!userLocation) {
+    if (mapGroup) mapGroup.classList.add("input-error-gps");
+    alertMessage += "- Critical Error: Device lost its GPS signal location mapping right before submission.\n";
+    validationFailure = true;
+  }
+
+  if (noteContent === "") {
+    descriptionGroup.classList.add("input-error");
+    alertMessage += "- Issue Description text field cannot be blank.\n";
+    validationFailure = true;
+  }
+
+  // Hard execution crash blocker
+  if (validationFailure) {
+    alert(alertMessage + "\nPlease resolve the highlighted issues and try again.");
+    verifyFormCompleteness();
+    return; 
+  }
+
+  // Compile final payload if completely clean
   const loggedReportPayload = {
     image: finalizedSnapshotBase64,
     description: noteContent,
     category: lockedCategory,
     location: `${userLocation.latitude.toFixed(5)}, ${userLocation.longitude.toFixed(5)}`,
+    deviceIp: userIpAddress,
     timestamp: new Date().toLocaleTimeString() + " - " + new Date().toLocaleDateString()
   };
 
+  // -------------------------------------------------------------
+  // INTEGRATION NOTE: For the demo sandbox build, we push to localStorage.
+  // When embedding this into the main app architecture, replace this block 
+  // with your custom API pipeline emit command:
+  // e.g., window.dispatchEvent(new CustomEvent('wasteLogged', { detail: loggedReportPayload }));
+  // -------------------------------------------------------------
   let databaseItems = JSON.parse(localStorage.getItem("ecoTapReports")) || [];
   databaseItems.unshift(loggedReportPayload);
   localStorage.setItem("ecoTapReports", JSON.stringify(databaseItems));
 
   displayStoredReportHistory();
-  alert("Success! Submission quality verified. Local report logged.");
+  alert("Success! Submission parameters verified and passed cleanly.");
 
+  // Post-submit UI cleanup sequence
   reportForm.reset();
   finalizedSnapshotBase64 = null;
   isImageQualityApproved = false;
@@ -256,34 +323,31 @@ function updateDiagnosticDisplay(message, isWarning = false) {
   feedbackList.appendChild(li);
 }
 
-
-// LOCAL DATABASE STORAGE RENDERING
 function displayStoredReportHistory() {
   if (!reportHistory) return;
   reportHistory.innerHTML = "";
-
   let dataset = JSON.parse(localStorage.getItem("ecoTapReports")) || [];
-
   if (dataset.length === 0) {
     reportHistory.innerHTML = "<p style='color: white; text-align: center;'>No reports saved yet.</p>";
     return;
   }
-
   dataset.forEach(function (data) {
     const card = document.createElement("div");
     card.classList.add("report-card");
     card.innerHTML = `
-      <img src="${data.image}" alt="Logged Local Evidence Map">
+      <img src="${data.image}" alt="Evidence">
       <p><strong>Category Type:</strong> ${data.category.toUpperCase()}</p>
       <p><strong>Description Details:</strong> ${data.description}</p>
-      <p><strong>Captured Location Lat/Long:</strong> ${data.location}</p>
+      <p><strong>Location Lock:</strong> ${data.location}</p>
+      <p><strong>Device IP:</strong> ${data.deviceIp || "Not Captured"}</p>
       <p style="font-size: 11px; color: #9ca3af; margin-top: 5px;">Logged on: ${data.timestamp}</p>
     `;
     reportHistory.appendChild(card);
   });
 }
 
-// Bootstrap Initialization Engine
+// Startup Initializations
+detectDeviceNetworkIp();
 openHardwareCameraFeed();
 establishPassiveLocationSensing();
 displayStoredReportHistory();

@@ -297,3 +297,31 @@ textarea:focus {
   font-size: 13px;
   margin-bottom: 3px;
 }
+/* ==========================================
+   STRICT VALIDATION ERROR STATES
+   ========================================== */
+.required-star {
+  color: #ef4444;
+  margin-left: 3px;
+}
+
+.form-group.input-error label {
+  color: #f87171 !important;
+  animation: shake 0.3s ease-in-out;
+}
+
+.form-group.input-error textarea {
+  border: 2px solid #ef4444 !important;
+  background: #fef2f2;
+}
+
+.form-group.input-error .camera-viewport {
+  border: 2px solid #ef4444 !important;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
